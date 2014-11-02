@@ -48,6 +48,10 @@
         NSLog(@"%@", [NSThread callStackSymbols]);
     }];
 
+    
+    NSURL *source_url = [[NSBundle mainBundle] URLForResource:@"socket.io" withExtension:@"js"];
+    NSString *socket_io_js = [NSString stringWithContentsOfURL:source_url encoding:NSUTF8StringEncoding error:nil];
+
     socket.javascriptContext[@"window"][@"onload"] = ^() {
         [socket.javascriptContext evaluateScript: socket_io_js];
         [socket.javascriptContext evaluateScript: blob_factory_js];

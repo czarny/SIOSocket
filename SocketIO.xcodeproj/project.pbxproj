@@ -7,6 +7,8 @@
 	objects = {
 
 /* Begin PBXBuildFile section */
+		490816931A069737003E840C /* socket.io.js in Resources */ = {isa = PBXBuildFile; fileRef = 490816921A069737003E840C /* socket.io.js */; };
+		490816941A069AAE003E840C /* socket.io.js in Resources */ = {isa = PBXBuildFile; fileRef = 490816921A069737003E840C /* socket.io.js */; };
 		733750D219B7A42800DEE6FC /* main.m in Sources */ = {isa = PBXBuildFile; fileRef = 733750D119B7A42800DEE6FC /* main.m */; };
 		733750D519B7A42800DEE6FC /* AppDelegate.m in Sources */ = {isa = PBXBuildFile; fileRef = 733750D419B7A42800DEE6FC /* AppDelegate.m */; };
 		733750D819B7A42800DEE6FC /* ViewController.m in Sources */ = {isa = PBXBuildFile; fileRef = 733750D719B7A42800DEE6FC /* ViewController.m */; };
@@ -35,6 +37,7 @@
 /* End PBXContainerItemProxy section */
 
 /* Begin PBXFileReference section */
+		490816921A069737003E840C /* socket.io.js */ = {isa = PBXFileReference; fileEncoding = 4; lastKnownFileType = sourcecode.javascript; path = socket.io.js; sourceTree = "<group>"; };
 		733750CD19B7A42800DEE6FC /* SocketIOHost.app */ = {isa = PBXFileReference; explicitFileType = wrapper.application; includeInIndex = 0; path = SocketIOHost.app; sourceTree = BUILT_PRODUCTS_DIR; };
 		733750D019B7A42800DEE6FC /* Info.plist */ = {isa = PBXFileReference; lastKnownFileType = text.plist.xml; path = Info.plist; sourceTree = "<group>"; };
 		733750D119B7A42800DEE6FC /* main.m */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.c.objc; path = main.m; sourceTree = "<group>"; };
@@ -136,6 +139,7 @@
 		73DF8C3E194F738300CAF960 /* Source */ = {
 			isa = PBXGroup;
 			children = (
+				490816921A069737003E840C /* socket.io.js */,
 				73DF8C3F194F738300CAF960 /* SIOSocket.h */,
 				73DF8C40194F738300CAF960 /* SIOSocket.m */,
 				73DF8C41194F738300CAF960 /* socket.io.js.h */,
@@ -224,6 +228,7 @@
 			isa = PBXResourcesBuildPhase;
 			buildActionMask = 2147483647;
 			files = (
+				490816941A069AAE003E840C /* socket.io.js in Resources */,
 				733750DB19B7A42800DEE6FC /* Main.storyboard in Resources */,
 				733750DD19B7A42800DEE6FC /* Images.xcassets in Resources */,
 			);
@@ -233,6 +238,7 @@
 			isa = PBXResourcesBuildPhase;
 			buildActionMask = 2147483647;
 			files = (
+				490816931A069737003E840C /* socket.io.js in Resources */,
 				73DF8C35194F66AA00CAF960 /* SIOSocket.podspec in Resources */,
 			);
 			runOnlyForDeploymentPostprocessing = 0;
