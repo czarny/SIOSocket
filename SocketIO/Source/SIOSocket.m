@@ -9,13 +9,28 @@
 #import "SIOSocket.h"
 #import <JavaScriptCore/JavaScriptCore.h>
 #import "socket.io.js.h"
+#import <CommonCrypto/CommonCrypto.h>
 
 #ifdef __IPHONE_8_0
 #import <WebKit/WebKit.h>
 #endif
 
+static NSString *SIOMD5(NSString *string) {
+    const char *cstr = [string UTF8String];
+    unsigned char result[16];
+    CC_MD5(cstr, (unsigned int)strlen(cstr), result);
+    
+    return [NSString stringWithFormat: @"%02X%02X%02X%02X%02X%02X%02X%02X%02X%02X%02X%02X%02X%02X%02X%02X",
+        result[0], result[1], result[2], result[3],
+        result[4], result[5], result[6], result[7],
+        result[8], result[9], result[10], result[11],
+        result[12], result[13], result[14], result[15]
+    ];
+};
+
 @interface SIOSocket ()
 
+@property (nonatomic, strong) NSThread *thread;
 @property UIWebView *javascriptWebView;
 @property (readonly) JSContext *javascriptContext;
 
@@ -36,9 +51,22 @@
 }
 
 + (void)socketWithHost:(NSString *)hostURL reconnectAutomatically:(BOOL)reconnectAutomatically attemptLimit:(NSInteger)attempts withDelay:(NSTimeInterval)reconnectionDelay maximumDelay:(NSTimeInterval)maximumDelay timeout:(NSTimeInterval)timeout response:(void (^)(SIOSocket *))response {
+    return [self socketWithHost: hostURL
+         reconnectAutomatically: YES
+                   attemptLimit: -1
+                      withDelay: 1
+                   maximumDelay: 5
+                        timeout: 20
+                 withTransports: @[ @"polling", @"websocket" ]
+                       response: response];
+}
+
++ (void)socketWithHost:(NSString *)hostURL reconnectAutomatically:(BOOL)reconnectAutomatically attemptLimit:(NSInteger)attempts withDelay:(NSTimeInterval)reconnectionDelay maximumDelay:(NSTimeInterval)maximumDelay timeout:(NSTimeInterval)timeout withTransports:(NSArray*)transports response:(void (^)(SIOSocket *))response {
     SIOSocket *socket = [[SIOSocket alloc] init];
     if (!socket) {
-        response(nil);
+        dispatch_async(dispatch_get_main_queue(), ^{
+            response(nil);
+        });
         return;
     }
 
@@ -53,6 +81,7 @@
     NSString *socket_io_js = [NSString stringWithContentsOfURL:source_url encoding:NSUTF8StringEncoding error:nil];
 
     socket.javascriptContext[@"window"][@"onload"] = ^() {
+        socket.thread = [NSThread currentThread];
         [socket.javascriptContext evaluateScript: socket_io_js];
         [socket.javascriptContext evaluateScript: blob_factory_js];
         
@@ -61,44 +90,66 @@
             attempts,
             reconnectionDelay,
             maximumDelay,
-            timeout
+            timeout,
+            transports
         );
 
         socket.javascriptContext[@"objc_socket"] = [socket.javascriptContext evaluateScript: socketConstructor];
         if (![socket.javascriptContext[@"objc_socket"] toObject]) {
-            response(nil);
+            dispatch_async(dispatch_get_main_queue(), ^{
+                response(nil);
+            });
         }
 
         // Responders
         __weak typeof(socket) weakSocket = socket;
         socket.javascriptContext[@"objc_onConnect"] = ^() {
-            if (weakSocket.onConnect)
-                weakSocket.onConnect();
+            dispatch_async(dispatch_get_main_queue(), ^{
+                if (weakSocket.onConnect)
+                    weakSocket.onConnect();
+            });
+        };
+        
+        socket.javascriptContext[@"objc_onConnectError"] = ^(NSDictionary *errorDictionary) {
+            dispatch_async(dispatch_get_main_queue(), ^{
+                if (weakSocket.onConnectError)
+                    weakSocket.onConnectError(errorDictionary);
+            });
         };
 
         socket.javascriptContext[@"objc_onDisconnect"] = ^() {
-            if (weakSocket.onDisconnect)
-                weakSocket.onDisconnect();
+            dispatch_async(dispatch_get_main_queue(), ^{
+                if (weakSocket.onDisconnect)
+                    weakSocket.onDisconnect();
+            });
         };
 
         socket.javascriptContext[@"objc_onError"] = ^(NSDictionary *errorDictionary) {
-            if (weakSocket.onError)
-                weakSocket.onError(errorDictionary);
+            dispatch_async(dispatch_get_main_queue(), ^{
+                if (weakSocket.onError)
+                    weakSocket.onError(errorDictionary);
+            });
         };
 
         socket.javascriptContext[@"objc_onReconnect"] = ^(NSInteger numberOfAttempts) {
-            if (weakSocket.onReconnect)
-                weakSocket.onReconnect(numberOfAttempts);
+            dispatch_async(dispatch_get_main_queue(), ^{
+                if (weakSocket.onReconnect)
+                    weakSocket.onReconnect(numberOfAttempts);
+            });
         };
 
         socket.javascriptContext[@"objc_onReconnectionAttempt"] = ^(NSInteger numberOfAttempts) {
-            if (weakSocket.onReconnectionAttempt)
-                weakSocket.onReconnectionAttempt(numberOfAttempts);
+            dispatch_async(dispatch_get_main_queue(), ^{
+                if (weakSocket.onReconnectionAttempt)
+                    weakSocket.onReconnectionAttempt(numberOfAttempts);
+            });
         };
 
         socket.javascriptContext[@"objc_onReconnectionError"] = ^(NSDictionary *errorDictionary) {
-            if (weakSocket.onReconnectionError)
-                weakSocket.onReconnectionError(errorDictionary);
+            dispatch_async(dispatch_get_main_queue(), ^{
+                if (weakSocket.onReconnectionError)
+                    weakSocket.onReconnectionError(errorDictionary);
+            });
         };
 
         [socket.javascriptContext evaluateScript: @"objc_socket.on('connect', objc_onConnect);"];
@@ -108,7 +159,9 @@
         [socket.javascriptContext evaluateScript: @"objc_socket.on('reconnecting', objc_onReconnectionAttempt);"];
         [socket.javascriptContext evaluateScript: @"objc_socket.on('reconnect_error', objc_onReconnectionError);"];
 
-        response(socket);
+        dispatch_async(dispatch_get_main_queue(), ^{
+            response(socket);
+        });
     };
         
     [socket.javascriptWebView loadHTMLString: @"<html/>" baseURL: nil];
@@ -125,7 +178,7 @@
 
 // Event listeners
 - (void)on:(NSString *)event callback:(void (^)(SIOParameterArray *args))function {
-    NSString *eventID = [event stringByReplacingOccurrencesOfString: @" " withString: @"_"];
+    NSString *eventID = SIOMD5(event);
     self.javascriptContext[[NSString stringWithFormat: @"objc_%@", eventID]] = ^() {
         NSMutableArray *arguments = [NSMutableArray array];
         for (JSValue *object in [JSContext currentArguments]) {
@@ -134,10 +187,13 @@
             }
         }
         
-        function(arguments);
+        dispatch_async(dispatch_get_main_queue(), ^{
+            function(arguments);
+        });
     };
     
-    [self.javascriptContext evaluateScript: [NSString stringWithFormat: @"objc_socket.on('%@', objc_%@);", event, eventID]];
+    NSString* script = [NSString stringWithFormat: @"objc_socket.on('%@', objc_%@);", event, eventID];
+    [self performSelector:@selector(evaluateScript:) onThread:_thread withObject:[script copy] waitUntilDone:NO];
 }
 
 // Emitters
@@ -162,11 +218,20 @@
             [arguments addObject: [NSString stringWithFormat: @"blob('%@')", dataString]];
         }
         else if ([arg isKindOfClass: [NSArray class]] || [arg isKindOfClass: [NSDictionary class]]) {
-            [arguments addObject: [[NSString alloc] initWithData: [NSJSONSerialization dataWithJSONObject: arg options: 0 error: nil] encoding: NSUTF8StringEncoding]];
+            if ([NSJSONSerialization isValidJSONObject:arg]) {
+                [arguments addObject: [[NSString alloc] initWithData: [NSJSONSerialization dataWithJSONObject: arg options: 0 error: nil] encoding: NSUTF8StringEncoding]];
+            } else {
+                NSLog(@"SIOSocket serialization error at %@", NSStringFromSelector(_cmd));
+            }
         }
     }
-    
-    [self.javascriptContext evaluateScript: [NSString stringWithFormat: @"objc_socket.emit(%@);", [arguments componentsJoinedByString: @", "]]];
+
+    NSString* script = [NSString stringWithFormat: @"objc_socket.emit(%@);", [arguments componentsJoinedByString: @", "]];
+    [self performSelector:@selector(evaluateScript:) onThread:_thread withObject:[script copy] waitUntilDone:NO];
+}
+
+- (void)evaluateScript:(NSString *)script {
+    [self.javascriptContext evaluateScript:script];
 }
 
 - (void)close {
